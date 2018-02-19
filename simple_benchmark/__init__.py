@@ -219,7 +219,16 @@ class Benchmark(object):
             return '<{} (not run yet)>'.format(type(self).__name__)
 
     def _function_name(self, func):
-        return self._function_aliases.get(func, func.__name__)
+        try:
+            return self._function_aliases[func]
+        except KeyError:
+            # Has to be a different branch because not every function has a
+            # __name__ attribute
+            try:
+                return func.__name__
+            except AttributeError:
+                raise TypeError('function "func" does not have a __name__ attribute. '
+                                'Please use "function_aliases" to provide a function name alias.')
 
     def run(self):
         """Run the benchmarks."""
