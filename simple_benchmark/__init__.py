@@ -26,14 +26,14 @@ def _estimate_number_of_repeats(func, target_seconds):
         The function to time. Must not have required arguments!
     target_seconds : number
         The amount of second the benchmark should roughly take.
-        Decimal values below 1 are possible
+        Decimal values below 1 are possible.
 
     Returns
     -------
     repeats : int
-        The number of repeats
+        The number of repeats.
     number : int
-        The number of timings in each repetition
+        The number of timings in each repetition.
     """
     # Just for a quick reference:
     # One millisecond is 1e-3
@@ -64,14 +64,12 @@ def _estimate_number_of_repeats(func, target_seconds):
 
 
 class Benchmark(object):
-    """
-    Create a benchmark suite for different functions and for different
-    arguments.
+    """Create a benchmark suite for different functions and for different arguments.
 
     Parameters
     ----------
     funcs : iterable of callables
-        The functions to benchmark
+        The functions to benchmark.
     arguments : dictionary
         A dictionary containing the "metric value" as key and the argument
         for the function as value.
@@ -82,7 +80,7 @@ class Benchmark(object):
         If not None it specifies the callables that need a warmup call
         before being timed. That is so, that caches can be filled or
         jitters to kick in.
-        Default is None
+        Default is None.
     time_per_benchmark : number, optional
         Each benchmark should take approximately this value in seconds.
         However the value is ignored for functions that take very little time
@@ -204,15 +202,14 @@ class Benchmark(object):
         """
         random_func = random.random
         return cls(funcs,
-                   arguments={size: [random_func()
-                                     for _ in itertools.repeat(None, times=size)]
+                   arguments={size: [random_func() for _ in itertools.repeat(None, times=size)]
                               for size in sizes},
                    argument_name='list size',
                    warmups=warmups,
                    time_per_benchmark=time_per_benchmark,
                    function_aliases=function_aliases)
 
-    def __repr__(self):
+    def __str__(self):
         if self._ran:
             return pprint.pformat(self._timings)
         else:
@@ -223,7 +220,8 @@ class Benchmark(object):
             return self._function_aliases[func]
         except KeyError:
             # Has to be a different branch because not every function has a
-            # __name__ attribute
+            # __name__ attribute. So we cannot simply use the dictionaries `get`
+            # with default.
             try:
                 return func.__name__
             except AttributeError:
@@ -235,7 +233,7 @@ class Benchmark(object):
         for arg in self._arguments.values():
             for func, timing_list in self._timings.items():
                 bound_func = functools.partial(func, arg)
-                for _ in range(self._warmup[func]):
+                for _ in itertools.repeat(None, times=self._warmup[func]):
                     bound_func()
                 repeats, number = _estimate_number_of_repeats(bound_func, self._time)
                 times = timeit.repeat(bound_func, number=number, repeat=repeats)
@@ -244,10 +242,14 @@ class Benchmark(object):
         self._ran = True
 
     def to_pandas_dataframe(self):
-        """Return the timing results as pandas Dataframe. This is the preferred
-        way of accessing the timings.
+        """Return the timing results as pandas Dataframe. This is the preferred way of accessing the timings.
 
         Requires Pandas.
+
+        Returns
+        -------
+        df : pandas.DataFrame
+            The timings as DataFrame.
         """
         try:
             import pandas as pd
@@ -256,12 +258,13 @@ class Benchmark(object):
         if not self._ran:
             raise ValueError('You have to run the benchmarks before you can convert them.')
         return pd.DataFrame(
-            {self._function_name(func): timings
-             for func, timings in self._timings.items()},
+            {self._function_name(func): timings for func, timings in self._timings.items()},
             index=list(self._arguments))
 
     def plot(self, ax=None, relative_to=None):
         """Plot the benchmarks, either relative or absolute.
+
+        Requires matplotlib.
 
         Parameters
         ----------
@@ -275,7 +278,7 @@ class Benchmark(object):
             import matplotlib.pyplot as plt
         except ImportError:
             raise ImportError('simple_benchmark requires Matplotlib for the '
-                              'plotting functionality')
+                              'plotting functionality.')
         if not self._ran:
             raise ValueError('You have to run the benchmarks before you can plot them.')
         if ax is None:
@@ -288,8 +291,7 @@ class Benchmark(object):
             if relative_to is None:
                 plot_time = timing
             else:
-                plot_time = [time / ref for time, ref in
-                             zip(self._timings[func], self._timings[relative_to])]
+                plot_time = [time / ref for time, ref in zip(self._timings[func], self._timings[relative_to])]
             ax.plot(x_axis, plot_time, label=label)
 
         ax.set_xscale('log')
@@ -305,6 +307,8 @@ class Benchmark(object):
 
     def plot_both(self, relative_to):
         """Plot both the absolute times and the relative time.
+
+        Requires matplotlib.
 
         Parameters
         ----------
