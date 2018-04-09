@@ -3,19 +3,22 @@ import sys
 from setuptools import setup, find_packages
 
 
+package_name = "simple_benchmark"
+
+
 def readme():
     with open('README.rst') as f:
         return f.read()
 
 
 def version():
-    with open('simple_benchmark/__init__.py') as f:
+    with open('{}/__init__.py'.format(package_name)) as f:
         for line in f:
             if line.startswith('__version__'):
                 return line.split(r"'")[1]
 
 
-setup(name='simple_benchmark',
+setup(name=package_name,
       version=version(),
 
       description='A simple benchmarking package.',
@@ -37,7 +40,6 @@ setup(name='simple_benchmark',
         'Operating System :: MacOS :: MacOS X',
         'Operating System :: Microsoft :: Windows',
         'Operating System :: POSIX :: Linux',
-        'Programming Language :: Python :: Implementation :: CPython',
         'Topic :: Utilities',
         'Topic :: System :: Benchmark'
       ],
