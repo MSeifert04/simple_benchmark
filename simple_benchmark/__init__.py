@@ -65,10 +65,10 @@ def _estimate_number_of_repeats(func, target_seconds):
     # of the timer isn't a limiting factor.
     if single_time < 1e-4:
         factor = 1e-4 / single_time
-        return int(n_repeats // factor), int(factor)
+        return max(int(n_repeats // factor), 1), max(int(factor), 1)
     # Otherwise the number of timings each repeat should be 1.
     # However make sure there are at least 3 repeats for each function!
-    return min(3, n_repeats), 1
+    return max(n_repeats, 3), 1
 
 
 def benchmark(
