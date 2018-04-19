@@ -14,7 +14,7 @@ install the optional dependencies:
 - Matplotlib
 """
 
-__version__ = '0.0.3'
+__version__ = '0.0.4'
 
 __all__ = ['benchmark', 'benchmark_random_array', 'benchmark_random_list',
            'BenchmarkResult', 'MultiArgument']
