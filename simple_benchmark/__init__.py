@@ -17,13 +17,20 @@ install the optional dependencies:
 __version__ = '0.0.3'
 
 __all__ = ['benchmark', 'benchmark_random_array', 'benchmark_random_list',
-           'BenchmarkResult']
+           'BenchmarkResult', 'MultiArgument']
 
 import functools
 import itertools
 import pprint
 import random
 import timeit
+
+
+class MultiArgument(tuple):
+    """Class that behaves like a tuple but signals to the benchmark that it
+    should pass multiple arguments to the function to benchmark.
+    """
+    pass
 
 
 def _estimate_number_of_repeats(func, target_seconds):
@@ -137,6 +144,19 @@ def benchmark(
         >>> b.plot(relative_to=np.sum)
         >>> b.plot_both(relative_to=sum)
 
+    It's also possible to pass multiple argumens to the functions being
+    benchmarked by using ``MultiArgument``::
+
+        >>> def func(a, b):
+        ...     return a + b
+        >>> funcs = [func]
+        >>> arguments = {10: MultiArgument([10, 10])}
+        >>> argument_name = "something"
+        >>> benchmark(funcs, arguments, argument_name)
+
+    The multi-argument is simply unpacked when the function is called for that
+    particular benchmark.
+
     See also
     --------
     benchmark_random_array, benchmark_random_list
@@ -151,7 +171,10 @@ def benchmark(
     timings = {func: [] for func in funcs}
     for arg in arguments.values():
         for func, timing_list in timings.items():
-            bound_func = functools.partial(func, arg)
+            if isinstance(arg, MultiArgument):
+                bound_func = functools.partial(func, *arg)
+            else:
+                bound_func = functools.partial(func, arg)
             for _ in itertools.repeat(None, times=warm_up_calls[func]):
                 bound_func()
             repeats, number = _estimate_number_of_repeats(bound_func, time_per_benchmark)
