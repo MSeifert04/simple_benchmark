@@ -14,7 +14,7 @@ install the optional dependencies:
 - Matplotlib
 """
 
-__version__ = '0.0.4'
+__version__ = '0.0.5'
 
 __all__ = ['benchmark', 'benchmark_random_array', 'benchmark_random_list',
            'BenchmarkResult', 'MultiArgument']
@@ -24,6 +24,9 @@ import itertools
 import pprint
 import random
 import timeit
+import warnings
+
+from collections import OrderedDict
 
 
 class MultiArgument(tuple):
@@ -95,6 +98,9 @@ def benchmark(
         A dictionary containing where the key represents the reported value
         (for example an integer representing the list size) as key and the argument
         for the functions (for example the list) as value.
+        In case you want to plot the result it should be sorted and ordered
+        (e.g. an :py:class:`collections.OrderedDict` or a plain dict if you are
+        using Python 3.7 or later).
     argument_name : str, optional
         The name of the reported value. For example if the arguments represent
         list sizes this could be `"size of the list"`.
@@ -203,7 +209,8 @@ def benchmark_random_array(
     funcs : iterable of callables
         The functions to benchmark.
     sizes : iterable of int
-        The different size values for arrays.
+        The different size values for arrays. In case you want to plot the
+        result it should be sorted.
     warmups : None or iterable of callables, optional
         If not None it specifies the callables that need a warmup call
         before being timed. That is so, that caches can be filled or
@@ -254,7 +261,7 @@ def benchmark_random_array(
         raise ImportError('simple_benchmark requires NumPy for this function.')
     return benchmark(
         funcs,
-        arguments={size: np.random.random(size) for size in sizes},
+        arguments=OrderedDict((size, np.random.random(size)) for size in sizes),
         argument_name='array size',
         warmups=warmups,
         time_per_benchmark=time_per_benchmark,
@@ -277,7 +284,8 @@ def benchmark_random_list(
     funcs : iterable of callables
         The functions to benchmark.
     sizes : iterable of int
-        The different size values for list.
+        The different size values for list. In case you want to plot the
+        result it should be sorted.
     warmups : None or iterable of callables, optional
         If not None it specifies the callables that need a warmup call
         before being timed. That is so, that caches can be filled or
@@ -319,8 +327,8 @@ def benchmark_random_list(
     random_func = random.random
     return benchmark(
         funcs,
-        arguments={size: [random_func() for _ in itertools.repeat(None, times=size)]
-                   for size in sizes},
+        arguments=OrderedDict((size, [random_func() for _ in itertools.repeat(None, times=size)])
+                              for size in sizes),
         argument_name='list size',
         warmups=warmups,
         time_per_benchmark=time_per_benchmark,
@@ -374,9 +382,14 @@ class BenchmarkResult(object):
             import pandas as pd
         except ImportError:
             raise ImportError('simple_benchmark requires pandas for this method.')
-        return pd.DataFrame(
-            {self._function_name(func): timings for func, timings in self._timings.items()},
-            index=list(self._arguments))
+        dct = {self._function_name(func): timings for func, timings in self._timings.items()}
+        if len(dct) != len(self._timings):
+            warnings.warn('Some timings are not included in the result. Likely '
+                          'because multiple functions have the same name. You '
+                          'can add an alias to the `function_aliases` mapping '
+                          'to avoid this problem.', UserWarning)
+
+        return pd.DataFrame(dct, index=list(self._arguments))
 
     def plot(self, relative_to=None, ax=None):
         """Plot the benchmarks, either relative or absolute.
