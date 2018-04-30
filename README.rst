@@ -3,6 +3,30 @@ simple_benchmark
 
 A simple benchmarking package.
 
+Documentation
+-------------
+
+.. image:: https://readthedocs.org/projects/simple-benchmark/badge/?version=stable
+   :target: http://simple-benchmark.readthedocs.io/en/stable/?badge=stable
+   :alt: Documentation Status
+
+.. image:: https://readthedocs.org/projects/simple-benchmark/badge/?version=latest
+   :target: http://simple-benchmark.readthedocs.io/en/latest/?badge=latest
+   :alt: Documentation Status
+
+
+Downloads
+---------
+
+.. image:: https://img.shields.io/pypi/v/simple_benchmark.svg
+   :target: https://pypi.python.org/pypi/simple_benchmark
+   :alt: PyPI Project
+
+.. image:: https://img.shields.io/github/release/MSeifert04/simple_benchmark.svg
+   :target: https://github.com/MSeifert04/simple_benchmark/releases
+   :alt: GitHub Project
+
+
 Installation
 ------------
 
