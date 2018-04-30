@@ -14,7 +14,7 @@ install the optional dependencies:
 - Matplotlib
 """
 
-__version__ = '0.0.6'
+__version__ = '0.0.7'
 
 __all__ = ['benchmark', 'benchmark_random_array', 'benchmark_random_list',
            'BenchmarkResult', 'MultiArgument']
@@ -96,7 +96,8 @@ def benchmark(
         argument_name="",
         warmups=None,
         time_per_benchmark=0.1,
-        function_aliases=None):
+        function_aliases=None,
+        estimator=min):
     """Create a benchmark suite for different functions and for different arguments.
 
     Parameters
@@ -129,6 +130,12 @@ def benchmark(
         and the name of the function as value. The value will be used in the
         final reports and plots.
         Default is None.
+    estimator : callable, optional
+        Each function is called with each argument multiple times and each
+        timing is recorded. The benchmark_estimator (by default :py:func:`min`)
+        is used to reduce this list of timings to one final value.
+        The minimum is generally a good way to estimate how fast a function can
+        run (see also the discussion in :py:meth:`timeit.Timer.repeat`).
 
     Returns
     -------
@@ -197,7 +204,7 @@ def benchmark(
             # of a timing is found by repeating the benchmark and using the
             # minimum.
             times = timeit.repeat(bound_func, number=number, repeat=repeats)
-            time = min(times)
+            time = estimator(times)
             timing_list.append(time / number)
     return BenchmarkResult(timings, function_aliases, arguments, argument_name)
 
