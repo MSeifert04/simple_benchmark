@@ -36,6 +36,15 @@ class MultiArgument(tuple):
     pass
 
 
+def _try_importing_matplotlib():
+    try:
+        import matplotlib.pyplot as plt
+    except ImportError:
+        raise ImportError('simple_benchmark requires matplotlib for the '
+                          'plotting functionality.')
+    return plt
+
+
 def _estimate_number_of_repeats(func, target_seconds):
     """Estimate the number of repeats for a function so that the benchmark will take a specific time.
 
@@ -150,7 +159,7 @@ def benchmark(
         >>> b.plot(relative_to=np.sum)
         >>> b.plot_both(relative_to=sum)
 
-    It's also possible to pass multiple argumens to the functions being
+    It's also possible to pass multiple arguments to the functions being
     benchmarked by using ``MultiArgument``::
 
         >>> def func(a, b):
@@ -391,29 +400,51 @@ class BenchmarkResult(object):
 
         return pd.DataFrame(dct, index=list(self._arguments))
 
-    def plot(self, relative_to=None, ax=None):
-        """Plot the benchmarks, either relative or absolute.
+    def plot_difference_percentage(self, relative_to, ax=None):
+        """Plot the benchmarks relative to one of the benchmarks with
+        percentages on the y-axis.
 
         Parameters
         ----------
+        relative_to : callable
+            The benchmarks are plotted relative to the timings of the given
+            function.
         ax : matplotlib.Axes or None, optional
             The axes on which to plot. If None plots on the currently active axes.
-        relative_to : callable or None, optional
-            If None it will plot the absolute timings, otherwise it will use the
-            given *relative_to* function as reference for the timings.
 
         Raises
         ------
         ImportError
             If matplotlib isn't installed.
         """
-        try:
-            import matplotlib.pyplot as plt
-        except ImportError:
-            raise ImportError('simple_benchmark requires matplotlib for the '
-                              'plotting functionality.')
-        if ax is None:
-            ax = plt.gca()
+        plt = _try_importing_matplotlib()
+        ax = ax or plt.gca()
+
+        self.plot(relative_to=relative_to, ax=ax)
+
+        ax.set_yscale('linear')
+        # Use percentage always including the sign for the y ticks.
+        ticks = ax.get_yticks()
+        ax.set_yticklabels(['{:+.1f}%'.format((x-1) * 100) for x in ticks])
+
+    def plot(self, relative_to=None, ax=None):
+        """Plot the benchmarks, either relative or absolute.
+
+        Parameters
+        ----------
+        relative_to : callable or None, optional
+            If None it will plot the absolute timings, otherwise it will use the
+            given *relative_to* function as reference for the timings.
+        ax : matplotlib.Axes or None, optional
+            The axes on which to plot. If None plots on the currently active axes.
+
+        Raises
+        ------
+        ImportError
+            If matplotlib isn't installed.
+        """
+        plt = _try_importing_matplotlib()
+        ax = ax or plt.gca()
 
         x_axis = list(self._arguments)
 
@@ -434,7 +465,6 @@ class BenchmarkResult(object):
             ax.set_ylabel('time relative to "{}"'.format(self._function_name(relative_to)))
         ax.grid(which='both')
         ax.legend()
-        plt.tight_layout()
 
     def plot_both(self, relative_to):
         """Plot both the absolute times and the relative time.
@@ -450,11 +480,7 @@ class BenchmarkResult(object):
         ImportError
             If matplotlib isn't installed.
         """
-        try:
-            import matplotlib.pyplot as plt
-        except ImportError:
-            raise ImportError('simple_benchmark requires matplotlib for the '
-                              'plotting functionality')
+        plt = _try_importing_matplotlib()
 
         f, (ax1, ax2) = plt.subplots(2, 1, sharex=True)
         self.plot(ax=ax1)
