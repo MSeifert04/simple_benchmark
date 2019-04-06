@@ -20,7 +20,7 @@
 # -- Project information -----------------------------------------------------
 
 project = 'simple_benchmark'
-copyright = '2018, Michael Seifert'
+copyright = 'since 2018, Michael Seifert'
 author = 'Michael Seifert'
 
 

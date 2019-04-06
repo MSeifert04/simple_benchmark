@@ -5,6 +5,9 @@ from setuptools import setup, find_packages
 
 package_name = "simple_benchmark"
 
+optional_dependencies = ["numpy", "matplotlib", "pandas"]
+development_dependencies = ["sphinx"]
+
 
 def readme():
     with open('README.rst') as f:
@@ -52,6 +55,11 @@ setup(name=package_name,
       author_email='michaelseifert04@yahoo.de',
 
       packages=find_packages(exclude=['ez_setup']),
+
+      extras_require={
+          'mysterious_feature_x': optional_dependencies,
+          'development': optional_dependencies + development_dependencies
+      },
 
       include_package_data=True,
       zip_safe=False,

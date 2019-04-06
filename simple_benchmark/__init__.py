@@ -10,23 +10,33 @@ To utilize the full features (visualization and post-processing) you need to
 install the optional dependencies:
 
 - NumPy
-- Pandas
-- Matplotlib
+- pandas
+- matplotlib
 """
 
-__version__ = '0.0.7'
+__version__ = '0.0.8'
 
-__all__ = ['benchmark', 'benchmark_random_array', 'benchmark_random_list',
-           'BenchmarkResult', 'MultiArgument']
+__all__ = ['benchmark', 'BenchmarkBuilder', 'BenchmarkResult', 'MultiArgument']
 
 import functools
 import itertools
+import platform
 import pprint
 import random
+import sys
 import timeit
 import warnings
 
 from collections import OrderedDict
+
+_DEFAULT_ARGUMENT_NAME = ''
+_DEFAULT_TIME_PER_BENCHMARK = 0.1
+_DEFAULT_ESTIMATOR = min
+
+_MSG_DECORATOR_FACTORY = (
+    'A decorator factory cannot be applied to a function directly. The decorator factory returns a decorator when '
+    'called so if no arguments should be applied then simply call the decorator factory without arguments.'
+)
 
 
 class MultiArgument(tuple):
@@ -37,12 +47,35 @@ class MultiArgument(tuple):
 
 
 def _try_importing_matplotlib():
+    """Tries to import matplotlib
+
+    Returns
+    -------
+    pyplot : module
+        The pyplot module from matplotlib
+
+    Raises
+    ------
+    ImportError
+        In case matplotlib is not installed.
+    """
     try:
         import matplotlib.pyplot as plt
     except ImportError:
         raise ImportError('simple_benchmark requires matplotlib for the '
                           'plotting functionality.')
     return plt
+
+
+def _get_python_bits():
+    """Is the current platform 64bit.
+
+    Returns
+    -------
+    result : string
+        The string '64bit' in case the Python installation uses 64bit or more, otherwise '32bit'.
+    """
+    return '64bit' if sys.maxsize > 2 ** 32 else '32bit'
 
 
 def _estimate_number_of_repeats(func, target_seconds):
@@ -93,11 +126,11 @@ def _estimate_number_of_repeats(func, target_seconds):
 def benchmark(
         funcs,
         arguments,
-        argument_name="",
+        argument_name=_DEFAULT_ARGUMENT_NAME,
         warmups=None,
-        time_per_benchmark=0.1,
+        time_per_benchmark=_DEFAULT_TIME_PER_BENCHMARK,
         function_aliases=None,
-        estimator=min):
+        estimator=_DEFAULT_ESTIMATOR):
     """Create a benchmark suite for different functions and for different arguments.
 
     Parameters
@@ -136,52 +169,16 @@ def benchmark(
         is used to reduce this list of timings to one final value.
         The minimum is generally a good way to estimate how fast a function can
         run (see also the discussion in :py:meth:`timeit.Timer.repeat`).
+        Default is :py:func:`min`.
 
     Returns
     -------
     benchmark : BenchmarkResult
         The result of the benchmarks.
 
-    Examples
-    --------
-    For example to benchmark different sum functions on a Python list.
-
-    The setup::
-
-        >>> from simple_benchmark import benchmark
-        >>> import numpy as np
-        >>> funcs = [sum, np.sum]
-        >>> arguments = {i: [1]*i for i in [1, 10, 100, 1000, 10000, 100000]}
-        >>> argument_name = 'list size'
-        >>> aliases = {sum: 'Python sum', np.sum: 'NumPy sum'}
-        >>> b = benchmark(funcs, arguments, argument_name, function_aliases=aliases)
-
-    Inspecting the results::
-
-        >>> b.to_pandas_dataframe()
-
-    Plotting the results::
-
-        >>> b.plot()
-        >>> b.plot(relative_to=np.sum)
-        >>> b.plot_both(relative_to=sum)
-
-    It's also possible to pass multiple arguments to the functions being
-    benchmarked by using ``MultiArgument``::
-
-        >>> def func(a, b):
-        ...     return a + b
-        >>> funcs = [func]
-        >>> arguments = {10: MultiArgument([10, 10])}
-        >>> argument_name = "something"
-        >>> benchmark(funcs, arguments, argument_name)
-
-    The multi-argument is simply unpacked when the function is called for that
-    particular benchmark.
-
     See also
     --------
-    benchmark_random_array, benchmark_random_list
+    BenchmarkBuilder
     """
     funcs = list(funcs)
     warm_up_calls = {func: 0 for func in funcs}
@@ -209,148 +206,6 @@ def benchmark(
     return BenchmarkResult(timings, function_aliases, arguments, argument_name)
 
 
-def benchmark_random_array(
-        funcs,
-        sizes,
-        warmups=None,
-        time_per_benchmark=0.1,
-        function_aliases=None):
-    """A shortcut for :func:`benchmark` if a random array is wanted.
-
-    The arguments *arguments* and *argument_name* of the normal constructor
-    are replaced with a simple *size* argument.
-
-    Parameters
-    ----------
-    funcs : iterable of callables
-        The functions to benchmark.
-    sizes : iterable of int
-        The different size values for arrays. In case you want to plot the
-        result it should be sorted.
-    warmups : None or iterable of callables, optional
-        If not None it specifies the callables that need a warmup call
-        before being timed. That is so, that caches can be filled or
-        jitters to kick in.
-        Default is None.
-    time_per_benchmark : float, optional
-        Each benchmark should take approximately this value in seconds.
-        However the value is ignored for functions that take very little time
-        or very long.
-        Default is 0.1 (seconds).
-    function_aliases : None or dict, optional
-        If not None it should be a dictionary containing the function as key
-        and the name of the function as value. The value will be used in the
-        final reports and plots.
-        Default is None.
-
-    Returns
-    -------
-    benchmark : BenchmarkResult
-        The result of the benchmarks.
-
-    Raises
-    ------
-    ImportError
-        If NumPy isn't installed.
-
-    Examples
-    --------
-
-    In case the arguments are NumPy arrays containing random floats this
-    function allows for a more concise benchmark::
-
-        >>> from simple_benchmark import benchmark_random_array
-        >>> import numpy as np
-        >>> funcs = [sum, np.sum]
-        >>> sizes = [i ** 4 for i in range(20)]
-        >>> aliases = {sum: 'Python sum', np.sum: 'NumPy sum'}
-        >>> b = benchmark_random_array(funcs, sizes, function_aliases=aliases)
-
-    See also
-    --------
-    benchmark, benchmark_random_list
-    """
-
-    try:
-        import numpy as np
-    except ImportError:
-        raise ImportError('simple_benchmark requires NumPy for this function.')
-    return benchmark(
-        funcs,
-        arguments=OrderedDict((size, np.random.random(size)) for size in sizes),
-        argument_name='array size',
-        warmups=warmups,
-        time_per_benchmark=time_per_benchmark,
-        function_aliases=function_aliases)
-
-
-def benchmark_random_list(
-        funcs,
-        sizes,
-        warmups=None,
-        time_per_benchmark=0.1,
-        function_aliases=None):
-    """A shortcut for :func:`benchmark` if a random list is wanted.
-
-    The arguments *arguments* and *argument_name* of the normal constructor
-    are replaced with a simple *size* argument.
-
-    Parameters
-    ----------
-    funcs : iterable of callables
-        The functions to benchmark.
-    sizes : iterable of int
-        The different size values for list. In case you want to plot the
-        result it should be sorted.
-    warmups : None or iterable of callables, optional
-        If not None it specifies the callables that need a warmup call
-        before being timed. That is so, that caches can be filled or
-        jitters to kick in.
-        Default is None.
-    time_per_benchmark : float, optional
-        Each benchmark should take approximately this value in seconds.
-        However the value is ignored for functions that take very little time
-        or very long.
-        Default is 0.1 (seconds).
-    function_aliases : None or dict, optional
-        If not None it should be a dictionary containing the function as key
-        and the name of the function as value. The value will be used in the
-        final reports and plots.
-        Default is None.
-
-    Returns
-    -------
-    benchmark : BenchmarkResult
-        The result of the benchmarks.
-
-    Examples
-    --------
-
-    In case the arguments are lists containing random floats this function
-    allows for a more concise benchmark::
-
-        >>> from simple_benchmark import benchmark_random_list
-        >>> import numpy as np
-        >>> funcs = [sum, np.sum]
-        >>> sizes = [i ** 4 for i in range(20)]
-        >>> aliases = {sum: 'Python sum', np.sum: 'NumPy sum'}
-        >>> b = benchmark_random_list(funcs, sizes, function_aliases=aliases)
-
-    See also
-    --------
-    benchmark, benchmark_random_array
-    """
-    random_func = random.random
-    return benchmark(
-        funcs,
-        arguments=OrderedDict((size, [random_func() for _ in itertools.repeat(None, times=size)])
-                              for size in sizes),
-        argument_name='list size',
-        warmups=warmups,
-        time_per_benchmark=time_per_benchmark,
-        function_aliases=function_aliases)
-
-
 class BenchmarkResult(object):
     """A class holding a benchmarking result that provides additional printing and plotting functions."""
     def __init__(self, timings, function_aliases, arguments, argument_name):
@@ -360,6 +215,7 @@ class BenchmarkResult(object):
         self._argument_name = argument_name
 
     def __str__(self):
+        """Prints the results as table."""
         try:
             return str(self.to_pandas_dataframe())
         except ImportError:
@@ -368,6 +224,7 @@ class BenchmarkResult(object):
     __repr__ = __str__
 
     def _function_name(self, func):
+        """Returns the associated name of a function."""
         try:
             return self.function_aliases[func]
         except KeyError:
@@ -380,13 +237,20 @@ class BenchmarkResult(object):
                 raise TypeError('function "func" does not have a __name__ attribute. '
                                 'Please use "function_aliases" to provide a function name alias.')
 
+    @staticmethod
+    def _get_title():
+        """Returns a string containing some information about Python and the machine."""
+        return "{0} {1} {2} ({3} {4})".format(
+            platform.python_implementation(), platform.python_version(), platform.python_compiler(),
+            platform.system(), platform.release())
+
     def to_pandas_dataframe(self):
-        """Return the timing results as pandas Dataframe. This is the preferred
-        way of accessing the text form of the timings.
+        """Return the timing results as pandas DataFrame. This is the preferred way of accessing the text form of the
+        timings.
 
         Returns
         -------
-        pandas.DataFrame
+        results : pandas.DataFrame
             The timings as DataFrame.
 
         Raises
@@ -416,7 +280,7 @@ class BenchmarkResult(object):
         relative_to : callable
             The benchmarks are plotted relative to the timings of the given
             function.
-        ax : matplotlib.Axes or None, optional
+        ax : matplotlib.axes.Axes or None, optional
             The axes on which to plot. If None plots on the currently active axes.
 
         Raises
@@ -442,7 +306,7 @@ class BenchmarkResult(object):
         relative_to : callable or None, optional
             If None it will plot the absolute timings, otherwise it will use the
             given *relative_to* function as reference for the timings.
-        ax : matplotlib.Axes or None, optional
+        ax : matplotlib.axes.Axes or None, optional
             The axes on which to plot. If None plots on the currently active axes.
 
         Raises
@@ -463,6 +327,7 @@ class BenchmarkResult(object):
                 plot_time = [time / ref for time, ref in zip(self._timings[func], self._timings[relative_to])]
             ax.plot(x_axis, plot_time, label=label)
 
+        ax.set_title(BenchmarkResult._get_title())
         ax.set_xscale('log')
         ax.set_yscale('log')
         ax.set_xlabel(self._argument_name)
@@ -492,3 +357,169 @@ class BenchmarkResult(object):
         f, (ax1, ax2) = plt.subplots(2, 1, sharex=True)
         self.plot(ax=ax1)
         self.plot(ax=ax2, relative_to=relative_to)
+
+
+class BenchmarkBuilder(object):
+    """A class useful for building benchmarks by adding decorators to the functions instead of collecting them later.
+
+    Parameters
+    ----------
+    time_per_benchmark : float, optional
+        Each benchmark should take approximately this value in seconds.
+        However the value is ignored for functions that take very little time
+        or very long.
+        Default is 0.1 (seconds).
+    estimator : callable, optional
+        Each function is called with each argument multiple times and each
+        timing is recorded. The benchmark_estimator (by default :py:func:`min`)
+        is used to reduce this list of timings to one final value.
+        The minimum is generally a good way to estimate how fast a function can
+        run (see also the discussion in :py:meth:`timeit.Timer.repeat`).
+        Default is :py:func:`min`.
+
+    See also
+    --------
+    benchmark
+    """
+    def __init__(self, time_per_benchmark=_DEFAULT_TIME_PER_BENCHMARK, estimator=_DEFAULT_ESTIMATOR):
+        self._funcs = []
+        self._arguments = OrderedDict()
+        self._warmups = []
+        self._function_aliases = {}
+        self._argument_name = _DEFAULT_ARGUMENT_NAME
+        self._time_per_benchmark = time_per_benchmark
+        self._estimator = estimator
+
+    def add_functions(self, functions):
+        """Add multiple functions to the benchmark.
+
+        Parameters
+        ----------
+        functions : iterable of callables
+            The functions to add to the benchmark
+        """
+        self._funcs.extend(functions)
+
+    def add_function(self, warmups=False, alias=None):
+        """A decorator factory that returns a decorator that can be used to add a function to the benchmark.
+
+        Parameters
+        ----------
+        warmups : bool, optional
+            If true the function is called once before each benchmark run.
+            Default is False.
+        alias : str or None, optional
+            If None then the displayed function name is the name of the function, otherwise the string is used when
+            the function is referred to.
+            Default is None.
+
+        Returns
+        -------
+        decorator : callable
+            The decorator that adds the function to the benchmark.
+
+        Raises
+        ------
+        TypeError
+            In case ``name`` is a callable.
+        """
+        if callable(warmups):
+            raise TypeError(_MSG_DECORATOR_FACTORY)
+
+        def inner(func):
+            self._funcs.append(func)
+            if warmups:
+                self._warmups.append(func)
+            if alias is not None:
+                self._function_aliases[func] = alias
+            return func
+
+        return inner
+
+    def add_arguments(self, name=_DEFAULT_ARGUMENT_NAME):
+        """A decorator factory that returns a decorator that can be used to add a function that produces the x-axis
+         values and the associated test data for the benchmark.
+
+        Parameters
+        ----------
+        name : str, optional
+            The label for the x-axis.
+
+        Returns
+        -------
+        decorator : callable
+            The decorator that adds the function that produces the x-axis values and the test data to the benchmark.
+
+        Raises
+        ------
+        TypeError
+            In case ``name`` is a callable.
+        """
+        if callable(name):
+            raise TypeError(_MSG_DECORATOR_FACTORY)
+
+        def inner(func):
+            self._arguments = OrderedDict(func())
+            self._argument_name = name
+            return func
+
+        return inner
+
+    def run(self):
+        """Starts the benchmark.
+
+        Returns
+        -------
+        result : BenchmarkResult
+            The result of the benchmark.
+        """
+        return benchmark(
+            funcs=self._funcs,
+            arguments=self._arguments,
+            argument_name=self._argument_name,
+            warmups=self._warmups,
+            time_per_benchmark=self._time_per_benchmark,
+            function_aliases=self._function_aliases,
+            estimator=self._estimator)
+
+    def use_random_arrays_as_arguments(self, sizes):
+        """Alternative to :meth:`add_arguments` that provides random arrays of the specified sizes as arguments for the
+        benchmark.
+
+        Parameters
+        ----------
+        sizes : iterable of int
+            An iterable containing the sizes for the arrays (should be sorted).
+
+        Raises
+        ------
+        ImportError
+            If NumPy isn't installed.
+        """
+        try:
+            import numpy as np
+        except ImportError:
+            raise ImportError('simple_benchmark requires NumPy for this function.')
+
+        def provide_random_arrays():
+            for size in sizes:
+                yield size, np.random.random(size)
+
+        self.add_arguments('array size')(provide_random_arrays)
+
+    def use_random_lists_as_arguments(self, sizes):
+        """Alternative to :meth:`add_arguments` that provides random lists of the specified sizes as arguments for the
+        benchmark.
+
+        Parameters
+        ----------
+        sizes : iterable of int
+            An iterable containing the sizes for the lists (should be sorted).
+        """
+        random_func = random.random
+
+        def provide_random_lists():
+            for size in sizes:
+                yield size, [random_func() for _ in itertools.repeat(None, times=size)]
+
+        self.add_arguments('list size')(provide_random_lists)

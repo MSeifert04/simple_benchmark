@@ -34,15 +34,20 @@ Using ``pip``:
 
 .. code::
 
-   pip install simple_benchmark
+   python -m pip install simple_benchmark
 
-Or the manual installation using ``git``:
+Or installing the most recent version directly from ``git``:
 
 .. code::
 
-   git clone https://github.com/MSeifert04/simple_benchmark.git
-   cd simple_benchmark
-   python setup.py install
+   python -m pip install git+https://github.com/MSeifert04/simple_benchmark.git
+
+To utilize the all features of the library (for example visualization) you need to
+install the optional dependencies:
+
+- `NumPy <http://www.numpy.org/>`_
+- `pandas <https://pandas.pydata.org/>`_
+- `matplotlib <https://matplotlib.org/>`_
 
 Getting started
 ---------------
@@ -61,16 +66,21 @@ of different sizes::
 The result can be visualized with ``pandas`` (needs to be installed)::
 
     >>> b
-            NumPy sum    Python sum
-    1        0.000003  1.032715e-07
-    10       0.000004  1.569619e-07
-    100      0.000007  7.155641e-07
-    1000     0.000042  6.153851e-06
-    10000    0.000382  6.030774e-05
-    100000   0.004034  6.026672e-04
+              Python sum  NumPy sum
+    1       9.640884e-08   0.000004
+    10      1.726930e-07   0.000004
+    100     7.935484e-07   0.000008
+    1000    7.040000e-06   0.000042
+    10000   6.910000e-05   0.000378
+    100000  6.899000e-04   0.003941
 
 Or with ``matplotlib`` (has to be installed too)::
 
     >>> b.plot()
+
+To save the plotted benchmark as PNG file::
+
+    >>> import matplotlib.pyplot as plt
+    >>> plt.savefig('sum_example.png')
 
 .. image:: ./docs/source/sum_example.png
