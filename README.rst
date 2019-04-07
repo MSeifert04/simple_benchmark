@@ -1,17 +1,17 @@
 simple_benchmark
 ================
 
-A simple benchmarking package.
+A simple benchmarking package including visualization facilities.
+
+The goal of this package is to provide a simple way to compare the performance
+of different approaches for different inputs and to visualize the result.
+
 
 Documentation
 -------------
 
 .. image:: https://readthedocs.org/projects/simple-benchmark/badge/?version=stable
    :target: http://simple-benchmark.readthedocs.io/en/stable/?badge=stable
-   :alt: Documentation Status
-
-.. image:: https://readthedocs.org/projects/simple-benchmark/badge/?version=latest
-   :target: http://simple-benchmark.readthedocs.io/en/latest/?badge=latest
    :alt: Documentation Status
 
 
