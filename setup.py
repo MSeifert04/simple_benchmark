@@ -7,6 +7,7 @@ package_name = "simple_benchmark"
 
 optional_dependencies = ["numpy", "matplotlib", "pandas"]
 development_dependencies = ["sphinx"]
+maintainer_dependencies = ["twine"]
 
 
 def readme():
@@ -57,8 +58,9 @@ setup(name=package_name,
       packages=find_packages(exclude=['ez_setup']),
 
       extras_require={
-          'mysterious_feature_x': optional_dependencies,
-          'development': optional_dependencies + development_dependencies
+          'optional': optional_dependencies,
+          'development': optional_dependencies + development_dependencies,
+          'maintainer': optional_dependencies + development_dependencies + maintainer_dependencies
       },
 
       include_package_data=True,

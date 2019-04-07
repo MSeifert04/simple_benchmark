@@ -49,6 +49,12 @@ install the optional dependencies:
 - `pandas <https://pandas.pydata.org/>`_
 - `matplotlib <https://matplotlib.org/>`_
 
+Or install them automatically using:
+
+.. code::
+
+   python -m pip install simple_benchmark[optional]
+
 Getting started
 ---------------
 
