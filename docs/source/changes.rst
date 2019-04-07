@@ -1,6 +1,13 @@
 Changelog
 =========
 
+0.0.9 (2019-04-07)
+------------------
+
+- Fixed wrong name for optional dependencies in ``extras_require`` of ``setup.py``
+
+- Added development documentation.
+
 0.0.8 (2019-04-06)
 ------------------
 
