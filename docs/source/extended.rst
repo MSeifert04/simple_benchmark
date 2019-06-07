@@ -43,7 +43,8 @@ For example to compare different approaches to calculate the sum of a list of fl
 MultiArgument
 -------------
 
-This class can be used to provide multiple arguments to the functions that should be benchmarked::
+The :py:class:`simple_benchmark.MultiArgument` class can be used to provide multiple arguments to the
+functions that should be benchmarked::
 
     from itertools import starmap
     from operator import add
@@ -87,6 +88,49 @@ This class can be used to provide multiple arguments to the functions that shoul
     plt.savefig('list_add_example.png')
 
 .. image:: ./list_add_example.png
+
+Asserting correctness
+---------------------
+
+Besides comparing the timings it's also important to assert that the approaches actually
+produce the same outcomes and don't modify the input arguments.
+
+To compare the results there is :py:func:`simple_benchmark.assert_same_results`::
+
+    import operator
+    import random
+    from simple_benchmark import assert_same_results
+
+    funcs = [min, max]  # will produce different results
+    arguments = {2**i: [random.random() for _ in range(2**i)] for i in range(2, 10)}
+    assert_same_results(funcs, arguments, equality_func=operator.eq)
+
+And to compare that the inputs were not modified :py:func:`simple_benchmark.assert_not_mutating_input`::
+
+    import operator
+    import random
+    from simple_benchmark import assert_not_mutating_input
+
+    def sort(l):
+        l.sort()  # modifies the input
+        return l
+
+    funcs = [sorted, sort]
+    arguments = {2**i: [random.random() for _ in range(2**i)] for i in range(2, 10)}
+    assert_not_mutating_input(funcs, arguments, equality_func=operator.eq)
+
+Both will produce an :py:class:`AssertionError` if they gave different results or mutate the input arguments.
+
+Typically the ``equality_func`` will be one of these:
+
+- :py:func:`operator.eq` will work for most Python objects.
+- :py:func:`math.isclose` will work for :py:class:`float` that may be close but not equal.
+- ``numpy.array_equal`` will work for element-wise comparison of NumPy arrays.
+- ``numpy.allclose`` will work for element-wise comparison of NumPy arrays containing floats that may be close but not equal.
+
+The :py:func:`simple_benchmark.assert_not_mutating_input` also accepts an optional argument that needs to be used in case
+the argument is not trivially copyable. It expects a function that takes the argument as input and should
+return a deep-copy of the argument.
 
 Examples on StackOverflow
 -------------------------
