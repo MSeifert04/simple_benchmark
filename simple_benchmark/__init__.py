@@ -14,10 +14,14 @@ install the optional dependencies:
 - matplotlib
 """
 
-__version__ = '0.0.9'
+__version__ = '0.1.0'
 
-__all__ = ['benchmark', 'BenchmarkBuilder', 'BenchmarkResult', 'MultiArgument']
+__all__ = [
+    'assert_same_results', 'assert_not_mutating_input', 'benchmark',
+    'BenchmarkBuilder', 'BenchmarkResult', 'MultiArgument'
+]
 
+import copy
 import functools
 import itertools
 import platform
@@ -32,11 +36,14 @@ from collections import OrderedDict
 _DEFAULT_ARGUMENT_NAME = ''
 _DEFAULT_TIME_PER_BENCHMARK = 0.1
 _DEFAULT_ESTIMATOR = min
+_DEFAULT_COPY_FUNC = copy.deepcopy
 
+_MISSING = object()
 _MSG_DECORATOR_FACTORY = (
     'A decorator factory cannot be applied to a function directly. The decorator factory returns a decorator when '
     'called so if no arguments should be applied then simply call the decorator factory without arguments.'
 )
+_MSG_MISSING_ARGUMENTS = "The BenchmarkBuilder instance is missing arguments for the functions."
 
 
 class MultiArgument(tuple):
@@ -123,6 +130,95 @@ def _estimate_number_of_repeats(func, target_seconds):
     return max(n_repeats, 3), 1
 
 
+def _get_bound_func(func, argument):
+    if isinstance(argument, MultiArgument):
+        return functools.partial(func, *argument)
+    else:
+        return functools.partial(func, argument)
+
+
+def assert_same_results(funcs, arguments, equality_func):
+    """Asserts that all functions return the same result.
+
+    .. versionadded:: 0.1.0
+
+    Parameters
+    ----------
+    funcs : iterable of callables
+        The functions to check.
+    arguments : dict
+        A dictionary containing where the key represents the reported value
+        (for example an integer representing the list size) as key and the argument
+        for the functions (for example the list) as value.
+        In case you want to plot the result it should be sorted and ordered
+        (e.g. an :py:class:`collections.OrderedDict` or a plain dict if you are
+        using Python 3.7 or later).
+    equality_func : callable
+        The function that determines if the results are equal. This function should
+        accept two arguments and return a boolean (True if the results should be
+        considered equal, False if not).
+
+    Raises
+    ------
+    AssertionError
+        In case any two results are not equal.
+    """
+    funcs = list(funcs)
+    for arg in arguments.values():
+        first_result = _MISSING
+        for func in funcs:
+            bound_func = _get_bound_func(func, arg)
+            result = bound_func()
+            if first_result is _MISSING:
+                first_result = result
+            else:
+                assert equality_func(first_result, result), (func, first_result, result)
+
+
+def assert_not_mutating_input(funcs, arguments, equality_func, copy_func=_DEFAULT_COPY_FUNC):
+    """Asserts that none of the functions mutate the arguments.
+
+    .. versionadded:: 0.1.0
+
+    Parameters
+    ----------
+    funcs : iterable of callables
+        The functions to check.
+    arguments : dict
+        A dictionary containing where the key represents the reported value
+        (for example an integer representing the list size) as key and the argument
+        for the functions (for example the list) as value.
+        In case you want to plot the result it should be sorted and ordered
+        (e.g. an :py:class:`collections.OrderedDict` or a plain dict if you are
+        using Python 3.7 or later).
+    equality_func : callable
+        The function that determines if the results are equal. This function should
+        accept two arguments and return a boolean (True if the results should be
+        considered equal, False if not).
+    copy_func : callable, optional
+        The function that is used to copy the original argument.
+        Default is :py:func:`copy.deepcopy`.
+
+    Raises
+    ------
+    AssertionError
+        In case any two results are not equal.
+
+    Notes
+    -----
+    In case the arguments are :py:class:`MultiArgument` then the copy_func and the
+    equality_func get these :py:class:`MultiArgument` as single arguments and need
+    to handle them appropriately.
+    """
+    funcs = list(funcs)
+    for arg in arguments.values():
+        original_arguments = copy_func(arg)
+        for func in funcs:
+            bound_func = _get_bound_func(func, arg)
+            bound_func()
+            assert equality_func(original_arguments, arg), (func, original_arguments, arg)
+
+
 def benchmark(
         funcs,
         arguments,
@@ -190,10 +286,7 @@ def benchmark(
     timings = {func: [] for func in funcs}
     for arg in arguments.values():
         for func, timing_list in timings.items():
-            if isinstance(arg, MultiArgument):
-                bound_func = functools.partial(func, *arg)
-            else:
-                bound_func = functools.partial(func, arg)
+            bound_func = _get_bound_func(func, arg)
             for _ in itertools.repeat(None, times=warm_up_calls[func]):
                 bound_func()
             repeats, number = _estimate_number_of_repeats(bound_func, time_per_benchmark)
@@ -252,6 +345,11 @@ class BenchmarkResult(object):
         -------
         results : pandas.DataFrame
             The timings as DataFrame.
+
+        Warns
+        -----
+        UserWarning
+            In case multiple functions have the same name.
 
         Raises
         ------
@@ -465,6 +563,69 @@ class BenchmarkBuilder(object):
 
         return inner
 
+    def assert_same_results(self, equality_func):
+        """Asserts that all stored functions return the same result.
+
+        .. versionadded:: 0.1.0
+
+        Parameters
+        ----------
+        equality_func : callable
+            The function that determines if the results are equal. This function should
+            accept two arguments and return a boolean (True if the results should be
+            considered equal, False if not).
+
+        Warns
+        -----
+        UserWarning
+            In case the instance has no arguments for the functions.
+
+        Raises
+        ------
+        AssertionError
+            In case any two results are not equal.
+        """
+        if not self._arguments:
+            warnings.warn(_MSG_MISSING_ARGUMENTS, UserWarning)
+            return
+        assert_same_results(self._funcs, self._arguments, equality_func=equality_func)
+
+    def assert_not_mutating_input(self, equality_func, copy_func=_DEFAULT_COPY_FUNC):
+        """Asserts that none of the stored functions mutate the arguments.
+
+        .. versionadded:: 0.1.0
+
+        Parameters
+        ----------
+        equality_func : callable
+            The function that determines if the results are equal. This function should
+            accept two arguments and return a boolean (True if the results should be
+            considered equal, False if not).
+        copy_func : callable, optional
+            The function that is used to copy the original argument.
+            Default is :py:func:`copy.deepcopy`.
+
+        Warns
+        -----
+        UserWarning
+            In case the instance has no arguments for the functions.
+
+        Raises
+        ------
+        AssertionError
+            In case any two results are not equal.
+
+        Notes
+        -----
+        In case the arguments are :py:class:`MultiArgument` then the copy_func and the
+        equality_func get these :py:class:`MultiArgument` as single arguments and need
+        to handle them appropriately.
+        """
+        if not self._arguments:
+            warnings.warn(_MSG_MISSING_ARGUMENTS, UserWarning)
+            return
+        assert_not_mutating_input(self._funcs, self._arguments, equality_func=equality_func, copy_func=copy_func)
+
     def run(self):
         """Starts the benchmark.
 
@@ -472,7 +633,16 @@ class BenchmarkBuilder(object):
         -------
         result : BenchmarkResult
             The result of the benchmark.
+
+        Warns
+        -----
+        UserWarning
+            In case the instance has no arguments for the functions.
+
+            .. versionadded:: 0.1.0
         """
+        if not self._arguments:
+            warnings.warn(_MSG_MISSING_ARGUMENTS, UserWarning)
         return benchmark(
             funcs=self._funcs,
             arguments=self._arguments,
