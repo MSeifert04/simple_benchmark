@@ -43,6 +43,7 @@ _MSG_DECORATOR_FACTORY = (
     'A decorator factory cannot be applied to a function directly. The decorator factory returns a decorator when '
     'called so if no arguments should be applied then simply call the decorator factory without arguments.'
 )
+_MSG_MISSING_ARGUMENTS = "The BenchmarkBuilder instance is missing arguments for the functions."
 
 
 class MultiArgument(tuple):
@@ -575,7 +576,7 @@ class BenchmarkBuilder(object):
             In case any two results are not equal.
         """
         if not self._arguments:
-            warnings.warn("There are no arguments for the functions", UserWarning)
+            warnings.warn(_MSG_MISSING_ARGUMENTS, UserWarning)
             return
         assert_same_results(self._funcs, self._arguments, equality_func=equality_func)
 
@@ -606,7 +607,7 @@ class BenchmarkBuilder(object):
         to handle them appropriately.
         """
         if not self._arguments:
-            warnings.warn("There are no arguments for the functions", UserWarning)
+            warnings.warn(_MSG_MISSING_ARGUMENTS, UserWarning)
             return
         assert_not_mutating_input(self._funcs, self._arguments, equality_func=equality_func, copy_func=copy_func)
 
@@ -618,6 +619,8 @@ class BenchmarkBuilder(object):
         result : BenchmarkResult
             The result of the benchmark.
         """
+        if not self._arguments:
+            warnings.warn(_MSG_MISSING_ARGUMENTS, UserWarning)
         return benchmark(
             funcs=self._funcs,
             arguments=self._arguments,
