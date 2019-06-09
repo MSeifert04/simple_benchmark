@@ -346,6 +346,11 @@ class BenchmarkResult(object):
         results : pandas.DataFrame
             The timings as DataFrame.
 
+        Warns
+        -----
+        UserWarning
+            In case multiple functions have the same name.
+
         Raises
         ------
         ImportError
@@ -570,6 +575,11 @@ class BenchmarkBuilder(object):
             accept two arguments and return a boolean (True if the results should be
             considered equal, False if not).
 
+        Warns
+        -----
+        UserWarning
+            In case the instance has no arguments for the functions.
+
         Raises
         ------
         AssertionError
@@ -595,6 +605,11 @@ class BenchmarkBuilder(object):
             The function that is used to copy the original argument.
             Default is :py:func:`copy.deepcopy`.
 
+        Warns
+        -----
+        UserWarning
+            In case the instance has no arguments for the functions.
+
         Raises
         ------
         AssertionError
@@ -618,6 +633,11 @@ class BenchmarkBuilder(object):
         -------
         result : BenchmarkResult
             The result of the benchmark.
+
+        Warns
+        -----
+        UserWarning
+            In case the instance has no arguments for the functions.
         """
         if not self._arguments:
             warnings.warn(_MSG_MISSING_ARGUMENTS, UserWarning)
