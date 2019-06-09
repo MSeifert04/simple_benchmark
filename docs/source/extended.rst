@@ -95,7 +95,8 @@ Asserting correctness
 Besides comparing the timings it's also important to assert that the approaches actually
 produce the same outcomes and don't modify the input arguments.
 
-To compare the results there is :py:func:`simple_benchmark.assert_same_results`::
+To compare the results there is :py:func:`simple_benchmark.assert_same_results`
+(or in case you use BenchmarkBuilder :py:meth:`simple_benchmark.BenchmarkBuilder.assert_same_results`)::
 
     import operator
     import random
@@ -105,7 +106,8 @@ To compare the results there is :py:func:`simple_benchmark.assert_same_results`:
     arguments = {2**i: [random.random() for _ in range(2**i)] for i in range(2, 10)}
     assert_same_results(funcs, arguments, equality_func=operator.eq)
 
-And to compare that the inputs were not modified :py:func:`simple_benchmark.assert_not_mutating_input`::
+And to compare that the inputs were not modified :py:func:`simple_benchmark.assert_not_mutating_input`
+(or in case you use BenchmarkBuilder :py:meth:`simple_benchmark.BenchmarkBuilder.assert_not_mutating_input`)::
 
     import operator
     import random

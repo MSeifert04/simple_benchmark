@@ -36,6 +36,7 @@ from collections import OrderedDict
 _DEFAULT_ARGUMENT_NAME = ''
 _DEFAULT_TIME_PER_BENCHMARK = 0.1
 _DEFAULT_ESTIMATOR = min
+_DEFAULT_COPY_FUNC = copy.deepcopy
 
 _MISSING = object()
 _MSG_DECORATOR_FACTORY = (
@@ -173,7 +174,7 @@ def assert_same_results(funcs, arguments, equality_func):
                 assert equality_func(first_result, result), (func, first_result, result)
 
 
-def assert_not_mutating_input(funcs, arguments, equality_func, copy_func=copy.deepcopy):
+def assert_not_mutating_input(funcs, arguments, equality_func, copy_func=_DEFAULT_COPY_FUNC):
     """Asserts that none of the functions mutate the arguments.
 
     .. versionadded:: 0.1.0
@@ -555,6 +556,59 @@ class BenchmarkBuilder(object):
             return func
 
         return inner
+
+    def assert_same_results(self, equality_func):
+        """Asserts that all stored functions return the same result.
+
+        .. versionadded:: 0.1.0
+
+        Parameters
+        ----------
+        equality_func : callable
+            The function that determines if the results are equal. This function should
+            accept two arguments and return a boolean (True if the results should be
+            considered equal, False if not).
+
+        Raises
+        ------
+        AssertionError
+            In case any two results are not equal.
+        """
+        if not self._arguments:
+            warnings.warn("There are no arguments for the functions", UserWarning)
+            return
+        assert_same_results(self._funcs, self._arguments, equality_func=equality_func)
+
+    def assert_not_mutating_input(self, equality_func, copy_func=_DEFAULT_COPY_FUNC):
+        """Asserts that none of the stored functions mutate the arguments.
+
+        .. versionadded:: 0.1.0
+
+        Parameters
+        ----------
+        equality_func : callable
+            The function that determines if the results are equal. This function should
+            accept two arguments and return a boolean (True if the results should be
+            considered equal, False if not).
+        copy_func : callable, optional
+            The function that is used to copy the original argument.
+            Default is :py:func:`copy.deepcopy`.
+
+        Raises
+        ------
+        AssertionError
+            In case any two results are not equal.
+
+        Notes
+        -----
+        In case the arguments are :py:class:`MultiArgument` then the copy_func and the
+        equality_func get these :py:class:`MultiArgument` as single arguments and need
+        to handle them appropriately.
+        """
+        if not self._arguments:
+            warnings.warn("There are no arguments for the functions", UserWarning)
+            return
+        assert_not_mutating_input(self._funcs, self._arguments, equality_func=equality_func, copy_func=copy_func)
 
     def run(self):
         """Starts the benchmark.
