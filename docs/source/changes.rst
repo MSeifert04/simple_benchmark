@@ -1,6 +1,11 @@
 Changelog
 =========
 
+0.1.0 (not released)
+--------------------
+
+- Added the functions ``assert_same_results`` and ``assert_not_mutating_input``.
+
 0.0.9 (2019-04-07)
 ------------------
 
