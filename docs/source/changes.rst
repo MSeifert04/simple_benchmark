@@ -5,6 +5,8 @@ Changelog
 --------------------
 
 - Added the functions ``assert_same_results`` and ``assert_not_mutating_input``.
+- The argument ``time_per_benchmark` of ``benchmark`` and ``BenchmarkBuilder`` now expects
+  a ``datetime.timedelta`` instead of a ``float``.
 
 0.0.9 (2019-04-07)
 ------------------

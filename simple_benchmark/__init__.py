@@ -22,6 +22,7 @@ __all__ = [
 ]
 
 import copy
+import datetime
 import functools
 import itertools
 import platform
@@ -34,7 +35,7 @@ import warnings
 from collections import OrderedDict
 
 _DEFAULT_ARGUMENT_NAME = ''
-_DEFAULT_TIME_PER_BENCHMARK = 0.1
+_DEFAULT_TIME_PER_BENCHMARK = datetime.timedelta(milliseconds=100)
 _DEFAULT_ESTIMATOR = min
 _DEFAULT_COPY_FUNC = copy.deepcopy
 
@@ -85,7 +86,7 @@ def _get_python_bits():
     return '64bit' if sys.maxsize > 2 ** 32 else '32bit'
 
 
-def _estimate_number_of_repeats(func, target_seconds):
+def _estimate_number_of_repeats(func, target_time):
     """Estimate the number of repeats for a function so that the benchmark will take a specific time.
 
     In case the function is very slow or really fast some default values are returned.
@@ -94,9 +95,8 @@ def _estimate_number_of_repeats(func, target_seconds):
     ----------
     func : callable
         The function to time. Must not have required arguments!
-    target_seconds : float
-        The amount of second the benchmark should roughly take.
-        Decimal values below 1 are possible.
+    target_time : datetime.timedelta
+        The amount of time the benchmark should roughly take.
 
     Returns
     -------
@@ -119,7 +119,7 @@ def _estimate_number_of_repeats(func, target_seconds):
     elif single_time < 1e-4:
         single_time = timeit.timeit(func, number=10) / 10
 
-    n_repeats = int(target_seconds / single_time)
+    n_repeats = int(target_time.total_seconds() / single_time)
     # The timeit execution should be at least 10-100us so that the granularity
     # of the timer isn't a limiting factor.
     if single_time < 1e-4:
@@ -249,11 +249,13 @@ def benchmark(
         before being timed. That is so, that caches can be filled or
         jitters to kick in.
         Default is None.
-    time_per_benchmark : float, optional
-        Each benchmark should take approximately this value in seconds.
-        However the value is ignored for functions that take very little time
-        or very long.
-        Default is 0.1 (seconds).
+    time_per_benchmark : datetime.timedelta, optional
+        Each benchmark should take approximately this time.
+        The value is ignored for functions that take very little time or very long.
+        Default is 0.1 seconds.
+
+        .. versionchanged:: 0.1.0
+           Now requires a :py:class:`datetime.timedelta` instead of a :py:class:`float`.
     function_aliases : None or dict, optional
         If not None it should be a dictionary containing the function as key
         and the name of the function as value. The value will be used in the
@@ -276,6 +278,11 @@ def benchmark(
     --------
     BenchmarkBuilder
     """
+    if not isinstance(time_per_benchmark, datetime.timedelta):
+        warnings.warn("Using a number as 'time_per_benchmark' is deprecated since version 0.1.0. "
+                      "Use 'datetime.timedelta(seconds={0})' instead".format(time_per_benchmark),
+                      DeprecationWarning)
+        time_per_benchmark = datetime.timedelta(seconds=time_per_benchmark)
     funcs = list(funcs)
     warm_up_calls = {func: 0 for func in funcs}
     if warmups is not None:
@@ -462,11 +469,13 @@ class BenchmarkBuilder(object):
 
     Parameters
     ----------
-    time_per_benchmark : float, optional
-        Each benchmark should take approximately this value in seconds.
-        However the value is ignored for functions that take very little time
-        or very long.
-        Default is 0.1 (seconds).
+    time_per_benchmark : datetime.timedelta, optional
+        Each benchmark should take approximately this time.
+        The value is ignored for functions that take very little time or very long.
+        Default is 0.1 seconds.
+
+        .. versionchanged:: 0.1.0
+           Now requires a :py:class:`datetime.timedelta` instead of a :py:class:`float`.
     estimator : callable, optional
         Each function is called with each argument multiple times and each
         timing is recorded. The benchmark_estimator (by default :py:func:`min`)
