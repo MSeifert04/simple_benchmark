@@ -21,6 +21,7 @@ __all__ = [
     'BenchmarkBuilder', 'BenchmarkResult', 'MultiArgument'
 ]
 
+import collections
 import copy
 import datetime
 import functools
@@ -31,8 +32,6 @@ import random
 import sys
 import timeit
 import warnings
-
-from collections import OrderedDict
 
 _DEFAULT_ARGUMENT_NAME = ''
 _DEFAULT_TIME_PER_BENCHMARK = datetime.timedelta(milliseconds=100)
@@ -490,7 +489,7 @@ class BenchmarkBuilder(object):
     """
     def __init__(self, time_per_benchmark=_DEFAULT_TIME_PER_BENCHMARK, estimator=_DEFAULT_ESTIMATOR):
         self._funcs = []
-        self._arguments = OrderedDict()
+        self._arguments = collections.OrderedDict()
         self._warmups = []
         self._function_aliases = {}
         self._argument_name = _DEFAULT_ARGUMENT_NAME
@@ -566,7 +565,7 @@ class BenchmarkBuilder(object):
             raise TypeError(_MSG_DECORATOR_FACTORY)
 
         def inner(func):
-            self._arguments = OrderedDict(func())
+            self._arguments = collections.OrderedDict(func())
             self._argument_name = name
             return func
 
