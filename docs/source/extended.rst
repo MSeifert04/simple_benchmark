@@ -134,6 +134,52 @@ The :py:func:`simple_benchmark.assert_not_mutating_input` also accepts an option
 the argument is not trivially copyable. It expects a function that takes the argument as input and should
 return a deep-copy of the argument.
 
+Times for each benchmark
+------------------------
+
+The benchmark will run each function on each of the arguments for a certain amount of times. Generally the results will
+be more accurate if one increases the number of times the function is executed during each benchmark. But the
+benchmark will also take longer.
+
+To control the time one benchmark should take one can use the ``time_per_benchmark`` argument. This controls how much
+time each function will take for each argument. The default is 0.1s (100 milliseconds) but the value is ignored
+for calls that either take very short (then it will finish faster) or very slow (because the benchmark tries to do at
+least a few calls).
+
+Another option is to control the maximum time a single function call may take ``maximum_time``. If the first call of this
+function exceeds the ``maximum_time`` the function will be excluded from the benchmark from this argument on.
+
+- To control the quality of the benchmark the ``time_per_benchmark`` can be used.
+- To avoid excessive benchmarking times one can use ``maximum_time``.
+
+An example showing both in action::
+
+    from simple_benchmark import benchmark
+    from datetime import timedelta
+
+    def O_n(n):
+        for i in range(n):
+            pass
+
+    def O_n_squared(n):
+        for i in range(n ** 2):
+            pass
+
+    def O_n_cube(n):
+        for i in range(n ** 3):
+            pass
+
+    b = benchmark(
+        [O_n, O_n_squared, O_n_cube],
+        {2**i: 2**i for i in range(2, 15)},
+        time_per_benchmark=timedelta(milliseconds=500),
+        maximum_time=timedelta(milliseconds=500)
+    )
+
+    b.plot()
+
+.. image:: ./time_example.png
+
 Examples on StackOverflow
 -------------------------
 

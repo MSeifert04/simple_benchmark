@@ -5,8 +5,15 @@ Changelog
 --------------------
 
 - Added the functions ``assert_same_results`` and ``assert_not_mutating_input``.
-- The argument ``time_per_benchmark` of ``benchmark`` and ``BenchmarkBuilder`` now expects
+
+- The argument ``time_per_benchmark`` of ``benchmark`` and ``BenchmarkBuilder`` now expects
   a ``datetime.timedelta`` instead of a ``float``.
+
+- Added ``maximum_time`` for ``benchmark`` and ``BenchmarkBuilder`` to control the maximum
+  time for a single function execution. If exceeded the function will not be not be benchmarked
+  anymore.
+
+- Added info-level based logging during benchmark runs.
 
 0.0.9 (2019-04-07)
 ------------------

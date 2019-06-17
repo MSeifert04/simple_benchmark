@@ -26,6 +26,7 @@ import copy
 import datetime
 import functools
 import itertools
+import logging
 import platform
 import pprint
 import random
@@ -44,6 +45,10 @@ _MSG_DECORATOR_FACTORY = (
     'called so if no arguments should be applied then simply call the decorator factory without arguments.'
 )
 _MSG_MISSING_ARGUMENTS = "The BenchmarkBuilder instance is missing arguments for the functions."
+
+_logger = logging.getLogger(__name__)
+_NaN = float('nan')
+_TIMEDELTA_ZERO = datetime.timedelta(0)
 
 
 class MultiArgument(tuple):
@@ -85,7 +90,15 @@ def _get_python_bits():
     return '64bit' if sys.maxsize > 2 ** 32 else '32bit'
 
 
-def _estimate_number_of_repeats(func, target_time):
+class TimingParams(object):
+    def __init__(self, repeats, number, stop, timing):
+        self.repeats = repeats  # The number of repeats.
+        self.number = number  # The number of timings in each repetition.
+        self.stop = stop  # Estimate was too slow, function should not be timed.
+        self.timing = timing  # Just informational: The time it took the estimate to run the function.
+
+
+def _estimate_number_of_repeats(func, target_time, maximum_time):
     """Estimate the number of repeats for a function so that the benchmark will take a specific time.
 
     In case the function is very slow or really fast some default values are returned.
@@ -96,19 +109,23 @@ def _estimate_number_of_repeats(func, target_time):
         The function to time. Must not have required arguments!
     target_time : datetime.timedelta
         The amount of time the benchmark should roughly take.
+    maximum_time : datetime.timedelta or None
+        If not None it represents the maximum time the first call of the function may take
+        otherwise a stop will be signalled.
 
     Returns
     -------
-    repeats : int
-        The number of repeats.
-    number : int
-        The number of timings in each repetition.
+    timing_parameter : TimingParams
+        The parameter used for the actual timings.
     """
     # Just for a quick reference:
     # One millisecond is 1e-3
     # One microsecond is 1e-6
     # One nanosecond  is 1e-9
     single_time = timeit.timeit(func, number=1)
+
+    if maximum_time is not None and single_time > maximum_time.total_seconds():
+        return TimingParams(0, 0, stop=True, timing=single_time)
 
     # Get a more accurate baseline if the function was really fast
     if single_time < 1e-6:
@@ -123,17 +140,34 @@ def _estimate_number_of_repeats(func, target_time):
     # of the timer isn't a limiting factor.
     if single_time < 1e-4:
         factor = 1e-4 / single_time
-        return max(int(n_repeats // factor), 1), max(int(factor), 1)
+        return TimingParams(repeats=max(int(n_repeats // factor), 1), number=max(int(factor), 1), stop=False,
+                            timing=single_time)
     # Otherwise the number of timings each repeat should be 1.
     # However make sure there are at least 3 repeats for each function!
-    return max(n_repeats, 3), 1
+    return TimingParams(repeats=max(n_repeats, 3), number=1, stop=False, timing=single_time)
 
 
 def _get_bound_func(func, argument):
+    """Return a function where the arguments are already bound to the function."""
     if isinstance(argument, MultiArgument):
         return functools.partial(func, *argument)
     else:
         return functools.partial(func, argument)
+
+
+def _get_function_name(func, aliases):
+    """Returns the associated name of a function."""
+    try:
+        return aliases[func]
+    except KeyError:
+        # Has to be a different branch because not every function has a
+        # __name__ attribute. So we cannot simply use the dictionaries `get`
+        # with default.
+        try:
+            return func.__name__
+        except AttributeError:
+            raise TypeError('function "func" does not have a __name__ attribute. '
+                            'Please use "function_aliases" to provide a function name alias.')
 
 
 def assert_same_results(funcs, arguments, equality_func):
@@ -225,7 +259,8 @@ def benchmark(
         warmups=None,
         time_per_benchmark=_DEFAULT_TIME_PER_BENCHMARK,
         function_aliases=None,
-        estimator=_DEFAULT_ESTIMATOR):
+        estimator=_DEFAULT_ESTIMATOR,
+        maximum_time=None):
     """Create a benchmark suite for different functions and for different arguments.
 
     Parameters
@@ -267,6 +302,12 @@ def benchmark(
         The minimum is generally a good way to estimate how fast a function can
         run (see also the discussion in :py:meth:`timeit.Timer.repeat`).
         Default is :py:func:`min`.
+    maximum_time : datetime.timedelta or None, optional
+        If not None it represents the maximum time the first call of the function may take.
+        If exceeded the benchmark will stop evaluating the function from then on.
+        Default is None.
+
+        .. versionadded:: 0.1.0
 
     Returns
     -------
@@ -282,26 +323,50 @@ def benchmark(
                       "Use 'datetime.timedelta(seconds={0})' instead".format(time_per_benchmark),
                       DeprecationWarning)
         time_per_benchmark = datetime.timedelta(seconds=time_per_benchmark)
+    if time_per_benchmark <= _TIMEDELTA_ZERO:
+        raise ValueError("'time_per_benchmark' ({}) must be positive.".format(time_per_benchmark))
+    if maximum_time is not None and maximum_time <= _TIMEDELTA_ZERO:
+        raise ValueError("'maximum_time' ({}) must be positive.".format(maximum_time))
     funcs = list(funcs)
     warm_up_calls = {func: 0 for func in funcs}
     if warmups is not None:
         for func in warmups:
             warm_up_calls[func] = 1
     function_aliases = function_aliases or {}
+    stopped = set()
 
     timings = {func: [] for func in funcs}
-    for arg in arguments.values():
+    for arg_name, arg in arguments.items():
+        _logger.info("Benchmark for argument: {}".format(arg_name))
         for func, timing_list in timings.items():
-            bound_func = _get_bound_func(func, arg)
-            for _ in itertools.repeat(None, times=warm_up_calls[func]):
-                bound_func()
-            repeats, number = _estimate_number_of_repeats(bound_func, time_per_benchmark)
-            # As per the timeit module documentation a very good approximation
-            # of a timing is found by repeating the benchmark and using the
-            # minimum.
-            times = timeit.repeat(bound_func, number=number, repeat=repeats)
-            time = estimator(times)
-            timing_list.append(time / number)
+            function_name = _get_function_name(func, function_aliases)
+            _logger.info("Benchmark function: {}".format(function_name))
+            if func in stopped:
+                _logger.info("SKIPPED: Not benchmarking function because a previous run exceeded the maximum time.")
+                time_per_run = _NaN
+            else:
+                bound_func = _get_bound_func(func, arg)
+                for _ in itertools.repeat(None, times=warm_up_calls[func]):
+                    bound_func()
+                params = _estimate_number_of_repeats(bound_func, time_per_benchmark, maximum_time)
+                if params.stop:
+                    _logger.info(
+                        "STOPPED: benchmarking because the first run ({}) exceeded the maximum_time '{}'."
+                        .format(datetime.timedelta(seconds=params.timing), maximum_time))
+                    stopped.add(func)
+                    time_per_run = _NaN
+                else:
+                    _logger.info(
+                        "RUN: benchmark with {} x {} runs (repeats & number) for estimated time {}."
+                        .format(params.repeats, params.number, datetime.timedelta(seconds=params.timing)))
+                    # As per the timeit module documentation a very good approximation
+                    # of a timing is found by repeating the benchmark and using the
+                    # minimum.
+                    times = timeit.repeat(bound_func, number=params.number, repeat=params.repeats)
+                    time = estimator(times)
+                    time_per_run = time / params.number
+            timing_list.append(time_per_run)
+
     return BenchmarkResult(timings, function_aliases, arguments, argument_name)
 
 
@@ -323,18 +388,8 @@ class BenchmarkResult(object):
     __repr__ = __str__
 
     def _function_name(self, func):
-        """Returns the associated name of a function."""
-        try:
-            return self.function_aliases[func]
-        except KeyError:
-            # Has to be a different branch because not every function has a
-            # __name__ attribute. So we cannot simply use the dictionaries `get`
-            # with default.
-            try:
-                return func.__name__
-            except AttributeError:
-                raise TypeError('function "func" does not have a __name__ attribute. '
-                                'Please use "function_aliases" to provide a function name alias.')
+        """Returns the function name taking the aliases into account."""
+        return _get_function_name(func, self.function_aliases)
 
     @staticmethod
     def _get_title():
@@ -482,12 +537,18 @@ class BenchmarkBuilder(object):
         The minimum is generally a good way to estimate how fast a function can
         run (see also the discussion in :py:meth:`timeit.Timer.repeat`).
         Default is :py:func:`min`.
+    maximum_time : datetime.timedelta or None, optional
+        If not None it represents the maximum time the first call of the function may take.
+        If exceeded the benchmark will stop evaluating the function from then on.
+        Default is None.
+
+        .. versionadded:: 0.1.0
 
     See also
     --------
     benchmark
     """
-    def __init__(self, time_per_benchmark=_DEFAULT_TIME_PER_BENCHMARK, estimator=_DEFAULT_ESTIMATOR):
+    def __init__(self, time_per_benchmark=_DEFAULT_TIME_PER_BENCHMARK, estimator=_DEFAULT_ESTIMATOR, maximum_time=None):
         self._funcs = []
         self._arguments = collections.OrderedDict()
         self._warmups = []
@@ -495,6 +556,7 @@ class BenchmarkBuilder(object):
         self._argument_name = _DEFAULT_ARGUMENT_NAME
         self._time_per_benchmark = time_per_benchmark
         self._estimator = estimator
+        self._maximum_time = maximum_time
 
     def add_functions(self, functions):
         """Add multiple functions to the benchmark.
@@ -658,7 +720,9 @@ class BenchmarkBuilder(object):
             warmups=self._warmups,
             time_per_benchmark=self._time_per_benchmark,
             function_aliases=self._function_aliases,
-            estimator=self._estimator)
+            estimator=self._estimator,
+            maximum_time=self._maximum_time
+        )
 
     def use_random_arrays_as_arguments(self, sizes):
         """Alternative to :meth:`add_arguments` that provides random arrays of the specified sizes as arguments for the
