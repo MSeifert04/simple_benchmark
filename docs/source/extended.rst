@@ -177,6 +177,9 @@ An example showing both in action::
     )
 
     b.plot()
+    # To save the plotted benchmark as PNG file.
+    import matplotlib.pyplot as plt
+    plt.savefig('time_example.png')
 
 .. image:: ./time_example.png
 

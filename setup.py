@@ -6,7 +6,7 @@ from setuptools import setup, find_packages
 package_name = "simple_benchmark"
 
 optional_dependencies = ["numpy", "matplotlib", "pandas"]
-development_dependencies = ["sphinx"]
+development_dependencies = ["sphinx", "pytest"]
 maintainer_dependencies = ["twine"]
 
 
@@ -57,6 +57,7 @@ setup(name=package_name,
 
       packages=find_packages(exclude=['ez_setup']),
 
+      tests_require=["pytest"],
       extras_require={
           'optional': optional_dependencies,
           'development': optional_dependencies + development_dependencies,

@@ -758,9 +758,8 @@ class BenchmarkBuilder(object):
         sizes : iterable of int
             An iterable containing the sizes for the lists (should be sorted).
         """
-        random_func = random.random
-
         def provide_random_lists():
+            random_func = random.random
             for size in sizes:
                 yield size, [random_func() for _ in itertools.repeat(None, times=size)]
 
