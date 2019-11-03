@@ -170,7 +170,56 @@ def _get_function_name(func, aliases):
                             'Please use "function_aliases" to provide a function name alias.')
 
 
-def assert_same_results(funcs, arguments, equality_func):
+class AlreadyStartedException(Exception):
+    """Thrown in case an attempt is made to start an already started instance."""
+
+
+class NotStartedYetException(Exception):
+    """Thrown in case the instance is not started yet."""
+
+
+class SimpleTimingContext(object):
+    """A very simple timing context manager. The result should be treated as
+    very rough approximation.
+
+    The timer is started when the with-block is entered and the timer is
+    stopped when the block is exited. Instances are not reusable and not
+    re-entrant.
+    """
+    @property
+    def _started(self):
+        """If the instance every entered a with-block."""
+        return hasattr(self, '_start')
+
+    @property
+    def _ended(self):
+        """If the instance has left the with-block."""
+        return hasattr(self, '_elapsed')
+
+    @property
+    def elapsed(self):
+        """A datetime.timedelta representing the time that passed in the current with-block."""
+        if self._ended:
+            return datetime.timedelta(seconds=self._elapsed)
+        elif self._started:
+            return datetime.timedelta(seconds=timeit.default_timer() - self._start)
+        else:
+            raise NotStartedYetException()
+
+    def __enter__(self):
+        if self._started:
+            raise AlreadyStartedException()
+        self._start = timeit.default_timer()
+        return self
+
+    def __exit__(self, exc_type, exc_val, exc_tb):
+        if self._started:
+            self._elapsed = timeit.default_timer() - self._start
+        else:
+            raise NotStartedYetException()
+
+
+def assert_same_results(funcs, arguments, equality_func, maximum_time=None):
     """Asserts that all functions return the same result.
 
     .. versionadded:: 0.1.0
@@ -190,25 +239,41 @@ def assert_same_results(funcs, arguments, equality_func):
         The function that determines if the results are equal. This function should
         accept two arguments and return a boolean (True if the results should be
         considered equal, False if not).
+    maximum_time : datetime.timedelta or None, optional
+        If not None it represents the maximum time the first call of the function may take.
+        If exceeded the assertion function will stop evaluating the function from then on.
+        Default is None.
 
     Raises
     ------
     AssertionError
         In case any two results are not equal.
     """
+    stopped = set()
     funcs = list(funcs)
     for arg in arguments.values():
         first_result = _MISSING
-        for func in funcs:
-            bound_func = _get_bound_func(func, arg)
-            result = bound_func()
-            if first_result is _MISSING:
-                first_result = result
-            else:
-                assert equality_func(first_result, result), (func, first_result, result)
+        # It makes no sense to compare the results if there is no or just one function left.
+        if len(set(funcs) - stopped) >= 2:
+            for func in funcs:
+                _logger.info("RUN: {}({}).".format(_get_function_name(func, {}), arg))
+                if func not in stopped:
+                    bound_func = _get_bound_func(func, arg)
+                    with SimpleTimingContext() as t:
+                        result = bound_func()
+                    # If there is a maximum time and it was exceeded stop processing this function.
+                    if maximum_time is not None and t.elapsed > maximum_time:
+                        _logger.info("STOPPED: benchmarking because the first run ({}) exceeded the maximum_time '{}'."
+                                     .format(t.elapsed, maximum_time))
+                        stopped.add(func)
+
+                    if first_result is _MISSING:
+                        first_result = result
+                    else:
+                        assert equality_func(first_result, result), (func, first_result, result)
 
 
-def assert_not_mutating_input(funcs, arguments, equality_func, copy_func=_DEFAULT_COPY_FUNC):
+def assert_not_mutating_input(funcs, arguments, equality_func, copy_func=_DEFAULT_COPY_FUNC, maximum_time=None):
     """Asserts that none of the functions mutate the arguments.
 
     .. versionadded:: 0.1.0
@@ -231,6 +296,10 @@ def assert_not_mutating_input(funcs, arguments, equality_func, copy_func=_DEFAUL
     copy_func : callable, optional
         The function that is used to copy the original argument.
         Default is :py:func:`copy.deepcopy`.
+    maximum_time : datetime.timedelta or None, optional
+        If not None it represents the maximum time the first call of the function may take.
+        If exceeded the assertion function will stop evaluating the function from then on.
+        Default is None.
 
     Raises
     ------
@@ -243,13 +312,23 @@ def assert_not_mutating_input(funcs, arguments, equality_func, copy_func=_DEFAUL
     equality_func get these :py:class:`MultiArgument` as single arguments and need
     to handle them appropriately.
     """
+    stopped = set()
     funcs = list(funcs)
     for arg in arguments.values():
         original_arguments = copy_func(arg)
-        for func in funcs:
-            bound_func = _get_bound_func(func, arg)
-            bound_func()
-            assert equality_func(original_arguments, arg), (func, original_arguments, arg)
+        # It makes no sense to compare the results if there is no or just one function left.
+        if len(set(funcs) - stopped) >= 2:
+            for func in funcs:
+                if func not in stopped:
+                    bound_func = _get_bound_func(func, arg)
+                    with SimpleTimingContext() as t:
+                        bound_func()
+                    # If there is a maximum time and it was exceeded stop processing this function.
+                    if maximum_time is not None and t.elapsed > maximum_time:
+                        _logger.info("STOPPED: benchmarking because the first run ({}) exceeded the maximum_time '{}'."
+                                     .format(t.elapsed, maximum_time))
+                        stopped.add(func)
+                    assert equality_func(original_arguments, arg), (func, original_arguments, arg)
 
 
 def benchmark(
@@ -658,7 +737,7 @@ class BenchmarkBuilder(object):
         if not self._arguments:
             warnings.warn(_MSG_MISSING_ARGUMENTS, UserWarning)
             return
-        assert_same_results(self._funcs, self._arguments, equality_func=equality_func)
+        assert_same_results(self._funcs, self._arguments, equality_func=equality_func, maximum_time=self._maximum_time)
 
     def assert_not_mutating_input(self, equality_func, copy_func=_DEFAULT_COPY_FUNC):
         """Asserts that none of the stored functions mutate the arguments.
@@ -694,7 +773,8 @@ class BenchmarkBuilder(object):
         if not self._arguments:
             warnings.warn(_MSG_MISSING_ARGUMENTS, UserWarning)
             return
-        assert_not_mutating_input(self._funcs, self._arguments, equality_func=equality_func, copy_func=copy_func)
+        assert_not_mutating_input(self._funcs, self._arguments, equality_func=equality_func, copy_func=copy_func,
+                                  maximum_time=self._maximum_time)
 
     def run(self):
         """Starts the benchmark.
