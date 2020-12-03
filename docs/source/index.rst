@@ -64,11 +64,45 @@ Or with ``matplotlib`` (has to be installed too)::
 
 .. image:: ./sum_example.png
 
+Command-Line interface
+----------------------
+
+.. warning::
+   The command line interface is highly experimental. It's very likely to
+   change its API.
+
+It's an experiment to run it as command-line tool, especially useful if you
+want to run it on multiple files and don't want the boilerplate.
+
+File ``sum.py``::
+
+   import numpy as np
+
+   def bench_sum(l, func=sum):
+      return func(l)
+
+   def bench_numpy_sum(l, func=np.sum):
+      return np.sum(l)
+
+   def args_list_length():
+      for i in [1, 10, 100, 1000, 10000, 100000]:
+         yield i, [1]*i
+
+Then run::
+
+    $ python -m simple_benchmark sum.py sum.png
+
+With a similar result ``sum.png``:
+
+.. image:: ./sum_example_cli.png
+
+
 .. toctree::
    :maxdepth: 2
    :caption: Contents:
 
    extended
+   command_line
    api
    changes
    license

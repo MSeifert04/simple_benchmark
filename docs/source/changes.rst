@@ -4,6 +4,9 @@ Changelog
 0.1.0 (not released)
 --------------------
 
+- Added a command-line command for performing benchmarks on carefully constructed
+  Python files (experimental)
+
 - Added the functions ``assert_same_results`` and ``assert_not_mutating_input``.
 
 - The argument ``time_per_benchmark`` of ``benchmark`` and ``BenchmarkBuilder`` now expects
