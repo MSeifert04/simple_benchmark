@@ -91,6 +91,7 @@ To save the plotted benchmark as PNG file::
 
 .. image:: ./docs/source/sum_example.png
 
+
 Command-Line interface
 ----------------------
 
@@ -122,3 +123,9 @@ Then run::
 With a similar result:
 
 .. image:: ./docs/source/sum_example_cli.png
+
+
+Similar packages
+----------------
+
+- `perfplot <https://github.com/nschloe/perfplot>`_ by Nico Schlömer.
